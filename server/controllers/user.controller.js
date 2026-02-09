@@ -83,18 +83,12 @@ const login = async (req, res) => {
 
 const logout = async (req, res) => {
   try {
-    // ใช้ clearCookie โดยอ้างอิงชื่อเดียวกับที่ตั้งไว้ตอน login (นั่นคือ "token")
-    res.clearCookie("token", {
-      httpOnly: true,
-      secure: false,
-      sameSite: "lax",
-    });
-
-    return res.status(200).send({
-      message: "Logged out successfully",
+    res.cookie("jwt", "", { maxAge: 0 });
+    res.status(200).send({
+      message: "Logout successful",
     });
   } catch (error) {
-    return res.status(500).send({
+    res.status(500).send({
       message: error.message || "Error while logging out",
     });
   }
