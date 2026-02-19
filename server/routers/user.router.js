@@ -1,14 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const userController = require("../controllers/user.controller");
+const { protectedRoute } = require("../middlewares/auth.middleware");
 
-//http://localhost:5000/api/v1/users/signup
-router.post("/signup", userController.signUp);
-
-//http://localhost:5000/api/v1/users/login
+router.post("/register", userController.register);
 router.post("/login", userController.login);
-
-//http://localhost:5000/api/v1/users/logout
-router.post("/logout", userController.logout);
-
+router.post("/logout", userController.logOut);
+router.put("/update-profile", protectedRoute, userController.updateProfile);
+router.get("/check-auth", protectedRoute, userController.checkAuth);
 module.exports = router;
