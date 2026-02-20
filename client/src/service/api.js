@@ -7,17 +7,30 @@ console.log(baseURL);
 //ใช้ design pattern ชื่อ singleton
 const instance = axios.create({
   baseURL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+  withCredentials: true,
 });
 
 // Add interceptor to request object
 //ส่งมาแล้วแต่ดักขาไป request
-instance.interceptors.request.use((config) => {
-  const token = TokenService.getAccessToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+instance.interceptors.request.use(
+  (config) => {
+    const token = TokenService.getAccessToken();
 
+    // เช็คว่าถ้าไม่ใช่หน้า login หรือ register ถึงจะแนบ token
+    const isAuthPage =
+      config.url.includes("/login") || config.url.includes("/register");
+
+    if (token && !isAuthPage) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  },
+);
 
 export default instance;
