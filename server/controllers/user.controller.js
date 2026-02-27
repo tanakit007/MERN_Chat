@@ -1,15 +1,11 @@
 // import library สำหรับเข้ารหัสรหัสผ่าน
 const bcrypt = require("bcrypt");
-
 // import library สำหรับสร้าง JWT token
 const jwt = require("jsonwebtoken");
-
 // import Model ของ User จาก mongoose
 const UserModel = require("../models/User");
-
 // โหลดตัวแปรจากไฟล์ .env
 require("dotenv").config();
-
 // ดึง secret key สำหรับใช้ sign JWT
 const secret = process.env.JWT_SECRET;
 const cloudinary = require("../configs/cloudinary");
@@ -22,7 +18,6 @@ const cloudinary = require("../configs/cloudinary");
 const register = async (req, res) => {
   const { fullName, email, password } = req.body;
 
-  // ตรวจสอบ input
   if (!fullName || !email || !password) {
     return res.status(400).json({
       message: "Please provide fullname, email and password",
@@ -30,7 +25,6 @@ const register = async (req, res) => {
   }
 
   try {
-    // เช็ค email ซ้ำ
     const existingUser = await UserModel.findOne({ email });
     if (existingUser) {
       return res.status(400).json({
@@ -38,27 +32,23 @@ const register = async (req, res) => {
       });
     }
 
-    // hash password
     const salt = bcrypt.genSaltSync(10);
     const hashedPassword = bcrypt.hashSync(password, salt);
 
-    // สร้าง user ใหม่
     const user = await UserModel.create({
       fullName,
       email,
       password: hashedPassword,
     });
 
-    // สร้าง JWT token
     const token = jwt.sign({ id: user._id, fullName: user.fullName }, secret, {
       expiresIn: "1d",
     });
 
-    // ส่ง response ตาม format ที่ต้องการ
     res.status(201).json({
       message: "User Register in successfully",
-      id: user._id,
-      fullName: user.fullname,
+      _id: user._id, // แก้จาก id เป็น _id ให้ตรงกับที่ frontend เรียกใช้
+      fullName: user.fullName,
       accessToken: token,
     });
   } catch (error) {
@@ -76,7 +66,6 @@ const register = async (req, res) => {
 const login = async (req, res) => {
   const { email, password } = req.body;
 
-  // ตรวจสอบ input
   if (!email || !password) {
     return res.status(400).json({
       message: "Please provide email and password",
@@ -84,38 +73,34 @@ const login = async (req, res) => {
   }
 
   try {
-    // หา user จาก email
     const user = await UserModel.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // ตรวจสอบ password
     const isPasswordMatched = bcrypt.compareSync(password, user.password);
 
     if (!isPasswordMatched) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // สร้าง JWT token
     const token = jwt.sign({ id: user._id, fullName: user.fullName }, secret, {
       expiresIn: "1d",
     });
 
-    // เก็บ token ลง cookie
     res.cookie("token", token, {
-      httpOnly: true, // JS ฝั่ง client อ่านไม่ได้
-      secure: process.env.NODE_ENV === "production", // https เท่านั้นใน production
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 24 * 60 * 60 * 1000, // 1 วัน
+      maxAge: 24 * 60 * 60 * 1000,
     });
 
-    // ส่งข้อมูล user กลับ (ไม่ส่ง token)
     res.json({
       _id: user._id,
       email: user.email,
       fullName: user.fullName,
       profilePic: user.profilePic,
+      accessToken: token, // ส่ง Token กลับไปให้ Frontend เก็บใน LocalStorage/Cookie
     });
   } catch (error) {
     res.status(500).json({
@@ -124,95 +109,80 @@ const login = async (req, res) => {
   }
 };
 
-// ฟังก์ชันสำหรับ logout โดยลบ cookie token
-const logOut = async (req, res) => {
+/**
+ * =========================
+ * GET USERS FOR SIDEBAR (ดึงรายชื่อผู้ใช้คนอื่น)
+ * =========================
+ */
+const getUsersForSidebar = async (req, res) => {
   try {
-    res.cookie("token", "", { maxAge: 0 }); // ลบ cookie โดยตั้งค่าเป็นค่าว่างและหมดอายุทันที
-    res.status(200).json({ message: "Logged out successfully" });
+    const loggedInUserId = req.user._id;
+
+    // ค้นหาผู้ใช้ทั้งหมดที่ไม่ใช่ตัวเอง และไม่ดึง password ออกมา
+    const filteredUsers = await UserModel.find({
+      _id: { $ne: loggedInUserId },
+    }).select("-password");
+
+    res.status(200).json(filteredUsers);
   } catch (error) {
-    res.status(500).json({
-      message: error.message || "Some errors occurred while logging out user",
+    console.error("Error in getUsersForSidebar: ", error.message);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+/**
+ * =========================
+ * UPDATE PROFILE (อัปเดตโปรไฟล์)
+ * =========================
+ */
+const updateProfile = async (req, res) => {
+  try {
+    const { fullName, profilePic } = req.body;
+    const userId = req.user._id;
+
+    let updateData = {};
+
+    if (fullName) updateData.fullName = fullName;
+
+    if (profilePic) {
+      // อัปโหลดรูปไปที่ Cloudinary
+      const uploadResponse = await cloudinary.uploader.upload(profilePic);
+      updateData.profilePic = uploadResponse.secure_url;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ message: "No data provided for update" });
+    }
+
+    // อัปเดตข้อมูลและคืนค่าข้อมูลใหม่ (new: true)
+    const updatedUser = await UserModel.findByIdAndUpdate(userId, updateData, {
+      new: true,
+    }).select("-password");
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // ส่งก้อนข้อมูล User ที่อัปเดตแล้วกลับไปให้ Frontend ทันที
+    return res.json({
+      message: "Profile updated successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Update Profile Error:", error);
+    return res.status(500).json({
+      message: "Internal Server Error while updating profile",
     });
   }
 };
 
-const updateProfile = async (req, res) => {
+const logOut = async (req, res) => {
   try {
-    const fullName = req.body?.fullName;
-    const profilePic = req.body?.profilePic;
-    const userId = req.user._id;
-
-    if (fullName && profilePic) {
-      const uploadResponse = await cloudinary.uploader.upload(profilePic);
-
-      if (!uploadResponse) {
-        return res.status(500).json({
-          message: "Error while uploading profile picture",
-        });
-      }
-
-      const updatedUser = await UserModel.findByIdAndUpdate(
-        userId,
-        {
-          fullName: fullName,
-          profilePic: uploadResponse.secure_url,
-        },
-        { new: true },
-      );
-
-      if (!updatedUser) {
-        return res.status(500).json({
-          message: "Error while updating user profile",
-        });
-      }
-
-      return res.json({
-        message: "User profile updated successfully",
-      });
-    } else if (fullName) {
-      const updatedUser = await UserModel.findByIdAndUpdate(
-        userId,
-        { fullName: fullName },
-        { new: true },
-      );
-
-      if (!updatedUser) {
-        return res.status(500).json({
-          message: "Error while updating user profile",
-        });
-      }
-
-      return res.json({
-        message: "User profile updated successfully",
-      });
-    } else if (profilePic) {
-      const uploadResponse = await cloudinary.uploader.upload(profilePic);
-
-      if (!uploadResponse) {
-        return res.status(500).json({
-          message: "Error while uploading profile picture",
-        });
-      }
-
-      const updatedUser = await UserModel.findByIdAndUpdate(
-        userId,
-        { profilePic: uploadResponse.secure_url },
-        { new: true },
-      );
-
-      if (!updatedUser) {
-        return res.status(500).json({
-          message: "Error while updating Picture profile",
-        });
-      }
-
-      return res.json({
-        message: "Picture profile updated successfully",
-      });
-    }
+    res.cookie("token", "", { maxAge: 0 });
+    res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
-    return res.status(500).json({
-      message: "Internal Server Error while updating ProfilePicture",
+    res.status(500).json({
+      message: error.message || "Some errors occurred while logging out user",
     });
   }
 };
@@ -227,5 +197,11 @@ const checkAuth = async (req, res) => {
   }
 };
 
-// export ฟังก์ชันไปใช้ใน router
-module.exports = { register, login, logOut, updateProfile, checkAuth };
+module.exports = {
+  register,
+  login,
+  logOut,
+  updateProfile,
+  checkAuth,
+  getUsersForSidebar,
+};

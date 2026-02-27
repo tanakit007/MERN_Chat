@@ -6,7 +6,7 @@ console.log(baseURL);
 
 //ใช้ design pattern ชื่อ singleton
 const instance = axios.create({
-  baseURL,
+  baseURL: "http://localhost:5000/api/v1",
   headers: {
     "Content-Type": "application/json",
   },

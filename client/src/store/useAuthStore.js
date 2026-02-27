@@ -1,9 +1,11 @@
 import { create } from "zustand";
 import api from "../service/api";
 import toast from "react-hot-toast";
+import { io } from "socket.io-client";
 
 export const useAuthStore = create((set, get) => ({
   authUser: null,
+  socket: null,
   isCheckingAuth: true,
   isLoggingIn: false,
   isRegister: false,
@@ -14,6 +16,7 @@ export const useAuthStore = create((set, get) => ({
     try {
       const response = await api.post("/user/register", data);
       set({ authUser: response.data });
+      get().connectSocket();
       toast.success("Registration successful!");
       return response.data;
     } catch (error) {
@@ -29,6 +32,7 @@ export const useAuthStore = create((set, get) => ({
     try {
       const response = await api.post("/user/login", data);
       set({ authUser: response.data });
+      get().connectSocket();
       toast.success("Login successful!");
     } catch (error) {
       toast.error(error.response.data.message || "Login failed!");
@@ -41,6 +45,7 @@ export const useAuthStore = create((set, get) => ({
     try {
       const response = await api.post("/user/logout");
       set({ authUser: null });
+      get().disconnectSocket();
       toast.success(response.data.message);
     } catch (error) {
       toast.error(error.response.data.message || "Logout failed!");
@@ -72,11 +77,33 @@ export const useAuthStore = create((set, get) => ({
     try {
       const response = await api.get("/user/check-auth");
       set({ authUser: response.data });
+      get().connectSocket();
     } catch (error) {
       console.error("Error in checkAuth:", error);
       set({ authUser: null });
     } finally {
       set({ isCheckingAuth: false });
+    }
+  },
+  connectSocket: () => {
+    const { authUser, socket } = get();
+    if (!authUser || socket?.connected) return;
+    const socketUrl = import.meta.env.VITE_SOCKET_URL;
+    const newSocket = io(socketUrl, {
+      query: {
+        userId: authUser._id,
+      },
+    });
+    newSocket.connect();
+    set({ socket: newSocket });
+    newSocket.on("getOnlineUsers", (userIds) => {
+      set({ onlineUsers: userIds });
+    });
+  },
+  disconnectSocket: () => {
+    const { socket } = get();
+    if (socket?.connected) {
+      socket.disconnect();
     }
   },
 }));

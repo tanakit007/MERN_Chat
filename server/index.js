@@ -5,16 +5,14 @@ dotenv.config();
 const mongoose = require("mongoose");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-
 const DB_URL = process.env.DB_URL;
 const CLIENT_URL = process.env.CLIENT_URL;
-
 //import router
 const UserRouter = require("./routers/user.router");
 // const PostRouter = require("./routers/post.router");
-
-const app = express();
+// const app = express();
 const PORT = process.env.PORT;
+const { server, app } = require("./lib/socket");
 
 //middleware หน้าที่เป็นตัวกลาง
 //แปลงข้อมูลที่รับมาให้อยู่ในรูปเเบบ json
@@ -35,6 +33,12 @@ app.use(
 );
 //ต้องใช้ตัวนี้ในการจัดการ cookie
 app.use(cookieParser());
+
+// ตรวจสอบ request ทั้งหมด
+app.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.path}`);
+  next();
+});
 
 //อนุญาติบาง method ใช้แบบนี้ได้
 // server ส่งหา  client หากเชื่อมต่อกันถูกต้อง
@@ -58,12 +62,11 @@ if (!DB_URL) {
 
 //configure port and listen port
 //ทำหน้าที่เป็น call back functions
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
 
 //Router
 app.use("/api/v1/user", UserRouter);
+app.use("/api/v1/message", require("./routers/message.router"));
 console.log("🔥 BEFORE POST ROUTER");
-// app.use("/api/v1/post", PostRouter);
-// console.log("🔥 AFTER POST ROUTER");
