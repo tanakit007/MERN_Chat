@@ -1,5 +1,6 @@
 import React from "react";
-import { Users, MessageSquare } from "lucide-react";
+import { MessageSquare } from "lucide-react";
+import Sidebar from "../components/Sidebar";
 
 const HomePage = () => {
   return (
@@ -10,32 +11,7 @@ const HomePage = () => {
       {/* =========================================
           ส่วนซ้าย: Sidebar (Contacts)
           ========================================= */}
-      <div className="w-72 flex flex-col border-r border-slate-800/60 bg-transparent">
-        {/* หัวข้อ Sidebar */}
-        <div className="p-5 flex flex-col gap-4">
-          <div className="flex items-center gap-2 font-medium text-white">
-            <Users size={20} className="text-slate-400" />
-            <span>Contacts</span>
-          </div>
-          
-          {/* ตัวกรอง (Filter) */}
-          <label className="flex items-center gap-3 cursor-pointer text-sm text-slate-400 hover:text-slate-300 transition-colors">
-            {/* ใช้ Checkbox แบบกลมให้คล้ายในรูป */}
-            <input 
-              type="checkbox" 
-              className="checkbox checkbox-sm rounded-full border-slate-600 bg-transparent hover:bg-slate-800 checked:bg-slate-700" 
-            />
-            <span>
-              Show online only <span className="text-slate-600 ml-1">(0 online)</span>
-            </span>
-          </label>
-        </div>
-
-        {/* พื้นที่แสดงรายชื่อ / ข้อความเมื่อไม่มีผู้ใช้ */}
-        <div className="flex-1 flex mt-10 justify-center text-slate-600 text-sm font-medium">
-          No online users
-        </div>
-      </div>
+      <Sidebar />
 
       {/* =========================================
           ส่วนขวา: Main Chat Area (Welcome Screen)

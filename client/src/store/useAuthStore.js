@@ -2,6 +2,7 @@ import { create } from "zustand";
 import api from "../service/api";
 import toast from "react-hot-toast";
 import { io } from "socket.io-client";
+import TokenService from "../service/token.service";
 
 export const useAuthStore = create((set, get) => ({
   authUser: null,
@@ -85,17 +86,18 @@ export const useAuthStore = create((set, get) => ({
       set({ isCheckingAuth: false });
     }
   },
-  connectSocket: () => {
+  connectSocket: (user) => {
     const { authUser, socket } = get();
-    if (!authUser || socket?.connected) return;
-    const socketUrl = import.meta.env.VITE_SOCKET_URL;
+    const baseUser = authUser || user || TokenService.getUser();
+    if (!baseUser || socket?.connected) return;
+    const socketUrl = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
     const newSocket = io(socketUrl, {
       query: {
-        userId: authUser._id,
+        userId: baseUser._id || baseUser.id,
       },
     });
     newSocket.connect();
-    set({ socket: newSocket });
+    set({ socket: newSocket, authUser: authUser || baseUser });
     newSocket.on("getOnlineUsers", (userIds) => {
       set({ onlineUsers: userIds });
     });

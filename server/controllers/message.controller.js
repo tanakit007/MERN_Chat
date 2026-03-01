@@ -23,20 +23,22 @@ const sendMessage = async (req, res) => {
     }
     const senderId = req.user._id;
     const { text, file } = req.body;
-    if (text === "" && file === "") {
+    const hasText = typeof text === "string" && text.trim() !== "";
+    const hasFile = typeof file === "string" && file.trim() !== "";
+    if (!hasText && !hasFile) {
       return res
         .status(400)
         .json({ message: "Message text or file is required" });
     }
-    const fileUrl = "";
-    if (file) {
+    let fileUrl = "";
+    if (hasFile) {
       const uploadResponse = await cloudinary.uploader.upload(file);
       fileUrl = uploadResponse.secure_url;
     }
     const newMessage = new MessageModel({
       sender: senderId,
       recipient: recipientId,
-      text,
+      text: hasText ? text : "",
       file: fileUrl,
     });
     await newMessage.save();
@@ -51,8 +53,8 @@ const getMessages = async (req, res) => {
     const { id: userToChat } = req.params;
     const messages = await MessageModel.find({
       $or: [
-        { senderId: myId, recipient: userToChat },
-        { senderId: userToChat, recipient: myId },
+        { sender: myId, recipient: userToChat },
+        { sender: userToChat, recipient: myId },
       ],
     });
     res.json({ data: messages });
